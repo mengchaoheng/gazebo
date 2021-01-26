@@ -1,0 +1,27 @@
+syntax = "proto2";
+package ductedfan_msgs;
+  
+message ductedfan
+{ 
+  /// \brief Current RPM of the propeller.
+  optional float r1_speed = 1;
+
+  optional float r2_speed = 2;
+
+  /// \brief Current csroll angle in rads.
+  optional float csroll = 3;
+
+  /// \brief Current cspitch angle in rads.
+  optional float cspitch = 4;
+
+  /// \brief Target RPM of the propeller.
+  optional float cmd_r1_speed = 5;
+
+  optional float cmd_r2_speed = 6;
+
+  /// \brief Target csroll angle in rads.
+  optional float cmd_csroll = 7;
+
+  /// \brief Target cspitch angle in rads.
+  optional float cmd_cspitch = 8;
+}
