@@ -29,10 +29,9 @@
 #endif
 
 #include "ductedfan.pb.h"
-
 namespace gazebo
 {
-  typedef const boost::shared_ptr<const ductedfan_msgs::ductedfan>  ConstductedfanPtr;
+  typedef const boost::shared_ptr<ductedfan_msgs::ductedfan const>  ConstductedfanPtr;
   /// \brief A GUI plugin that controls the Cessna model using the keyboard.
   /// If you are reading this, feel free to improve this plugin by adding
   /// graphical widgets to make the demo more interesting and fun.
@@ -40,8 +39,8 @@ namespace gazebo
   /// Keyboard controls:
   /// w         Increase thrust (+10 %)
   /// s         Decrease thrust (-10 %)
-  /// d         Increase rudder angle (+1 degree)
-  /// a         Decrease rudder angle (-1 degree)
+  /// d         Increase yaw/rudder angle (+1 degree)
+  /// a         Decrease yaw/rudder angle (-1 degree)
   /// Left-Key  Left roll (+1 degree)
   /// Right-Key Right roll (+1 degree)
   /// Up-Key    Pitch down (+1 degree)
@@ -49,18 +48,18 @@ namespace gazebo
   /// 1         Preset for take-off
   /// 2         Preset for cruise
   /// 3         Preset for landing
-  class GAZEBO_VISIBLE CessnaGUIPlugin : public GUIPlugin
+  class GZ_PLUGIN_VISIBLE DFGUIPlugin : public GUIPlugin
   {
     Q_OBJECT
 
     /// \brief Constructor.
-    public: CessnaGUIPlugin();
+    public: DFGUIPlugin();
 
     /// \brief Destructor.
-    public: virtual ~CessnaGUIPlugin();
+    public: virtual ~DFGUIPlugin();
 
     /// \brief Callback that receives a control message from
-    /// the ~/cessna_c172/state topic.
+    /// the ~/ducted_fan_c172/state topic.
     /// \param[in] _msg State msg.
     private: void OnState(ConstductedfanPtr &_msg);
 
@@ -70,12 +69,6 @@ namespace gazebo
     /// \brief Decrease the propeller RPMs.
     private slots: void OnDecreaseThrust();
 
-    /// \brief Increase the flaps angle.
-    private slots: void OnIncreaseFlaps();
-
-    /// \brief Decrease the flaps angle.
-    private slots: void OnDecreaseFlaps();
-
     /// \brief Increase Roll.
     private slots: void OnIncreaseRoll();
 
@@ -83,16 +76,16 @@ namespace gazebo
     private slots: void OnDecreaseRoll();
 
     /// \brief Increase the elevators angle.
-    private slots: void OnIncreaseElevators();
+    private slots: void OnIncreasePitch();
 
     /// \brief Decrease the elevators angle.
-    private slots: void OnDecreaseElevators();
+    private slots: void OnDecreasePitch();
 
     /// \brief Increase the rudder angle.
-    private slots: void OnIncreaseRudder();
+    private slots: void OnIncreaseYaw();
 
     /// \brief Decrease the rudder angle.
-    private slots: void OnDecreaseRudder();
+    private slots: void OnDecreaseYaw();
 
     /// \brief Take-off preset.
     private slots: void OnPresetTakeOff();
@@ -118,8 +111,8 @@ namespace gazebo
     /// \brief Angle increment/decrement each time a key is pressed;
     private: ignition::math::Angle angleStep;
 
-    /// \brief State received from the Cessna plugin.
-    private: msgs::Cessna state;
+    /// \brief State received from the ducted_fan plugin.
+    private: ductedfan_msgs::ductedfan state;
 
     /// \brief Protection.
     private: std::mutex mutex;

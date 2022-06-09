@@ -29,7 +29,7 @@
 #include <gazebo/msgs/msgs.hh>
 #include <gazebo/physics/PhysicsTypes.hh>
 #include <gazebo/transport/TransportTypes.hh>
-
+#include "ductedfan.pb.h"
 namespace gazebo
 {
   typedef const boost::shared_ptr<const ductedfan_msgs::ductedfan>  ConstductedfanPtr;
@@ -62,13 +62,13 @@ namespace gazebo
   ///
   /// The plugin will advertise the following topic with the current state:
   /// "~/<model_name>/state"
-  class GAZEBO_VISIBLE CessnaPlugin : public ModelPlugin
+  class GZ_PLUGIN_VISIBLE DFPlugin : public ModelPlugin
   {
     /// \brief Constructor.
-    public: CessnaPlugin();
+    public: DFPlugin();
 
     /// \brief Destructor.
-    public: ~CessnaPlugin();
+    public: ~DFPlugin();
 
     // Documentation Inherited.
     public: virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
@@ -100,14 +100,10 @@ namespace gazebo
     private: void PublishState();
 
     /// \brief Joint indexes.
-    private: static const unsigned int kLeftAileron  = 0;
-    private: static const unsigned int kLeftFlap     = 1;
-    private: static const unsigned int kRightAileron = 2;
-    private: static const unsigned int kRightFlap    = 3;
-    private: static const unsigned int kElevators    = 4;
-    private: static const unsigned int kRudder       = 5;
-    private: static const unsigned int kPropeller    = 6;
-
+    private: static const unsigned int kCsroll        = 0;
+    private: static const unsigned int kCspitch       = 1;
+    private: static const unsigned int kPropeller1    = 2;
+    private: static const unsigned int kPropeller2    = 3;
     /// \brief Pointer to the update event connection.
     private: event::ConnectionPtr updateConnection;
 
@@ -124,19 +120,19 @@ namespace gazebo
     private: physics::ModelPtr model;
 
     /// \brief Control surfaces joints.
-    private: std::array<physics::JointPtr, 7> joints;
+    private: std::array<physics::JointPtr, 4> joints;
 
     /// \brief Max propeller RPM.
     private: int32_t propellerMaxRpm = 2500;
 
     /// \brief Next command to be applied to the propeller and control surfaces.
-    private: std::array<float, 7> cmds;
+    private: std::array<float, 4> cmds;
 
     /// \brief Velocity PID for the propeller.
     private: common::PID propellerPID;
 
     /// \brief Position PID for the control surfaces.
-    private: std::array<common::PID, 6> controlSurfacesPID;
+    private: std::array<common::PID, 2> controlSurfacesPID;
 
     /// \brief keep track of controller update sim-time.
     private: gazebo::common::Time lastControllerUpdateTime;

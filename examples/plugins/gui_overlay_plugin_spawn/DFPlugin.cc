@@ -18,6 +18,7 @@
 #include <functional>
 #include <string>
 #include <sdf/sdf.hh>
+//#include <ignition/common/Profiler.hh>
 #include <gazebo/common/Assert.hh>
 #include <gazebo/common/Plugin.hh>
 #include <gazebo/msgs/msgs.hh>
@@ -26,6 +27,7 @@
 #include "DFPlugin.hh"
 
 using namespace gazebo;
+
 
 GZ_REGISTER_MODEL_PLUGIN(DFPlugin)
 
@@ -94,8 +96,7 @@ void DFPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
   }
 
   // Read the required joint name parameters.
-  std::vector<std::string> requiredParams = {"left_aileron", "left_flap",
-    "right_aileron", "right_flap", "elevators", "rudder", "propeller"};
+  std::vector<std::string> requiredParams = {"csroll", "cspitch", "r1", "r2"};
 
   for (size_t i = 0; i < requiredParams.size(); ++i)
   {
@@ -143,16 +144,22 @@ void DFPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
   this->node = transport::NodePtr(new transport::Node());
   this->node->Init();
   std::string prefix = "~/" + this->model->GetName() + "/";
-  this->statePub = this->node->Advertise<msgs::Cessna>(prefix + "state");
+  this->statePub = this->node->Advertise<ductedfan_msgs::ductedfan>(prefix + "state");
   this->controlSub = this->node->Subscribe(prefix + "control",
     &DFPlugin::OnControl, this);
 
-  gzlog << "Cessna ready to fly. The force will be with you" << std::endl;
+  //gzlog << "gzlog: ducted_fan ready to fly. The force will be with you" << std::endl;
+  //printf("printf: ducted_fan ready to fly. The force will be with you\n");
+  //gzerr << "gzerr: ducted_fan ready to fly. The force will be with you" << std::endl;
+  //gzwarn << "gzwarn: ducted_fan ready to fly. The force will be with you" << std::endl;
+  gzdbg << "DFplugin" << std::endl;
 }
 
 /////////////////////////////////////////////////
 void DFPlugin::Update(const common::UpdateInfo &/*_info*/)
 {
+  //gzdbg << "gzdbg: Update" << std::endl;
+  //IGN_PROFILE("DFPlugin::OnUpdate");
   std::lock_guard<std::mutex> lock(this->mutex);
 
   gazebo::common::Time curTime = this->model->GetWorld()->SimTime();
@@ -160,48 +167,60 @@ void DFPlugin::Update(const common::UpdateInfo &/*_info*/)
   if (curTime > this->lastControllerUpdateTime)
   {
     // Update the control surfaces and publish the new state.
+    //IGN_PROFILE_BEGIN("Update");
     this->UpdatePIDs((curTime - this->lastControllerUpdateTime).Double());
+    //IGN_PROFILE_END();
+    //IGN_PROFILE_BEGIN("Publish");
     this->PublishState();
-
+    //IGN_PROFILE_END();
     this->lastControllerUpdateTime = curTime;
   }
 }
-
+//reseive control
 /////////////////////////////////////////////////
-void DFPlugin::OnControl(ConstCessnaPtr &_msg)
+
+void DFPlugin::OnControl(ConstductedfanPtr &_msg)
 {
   std::lock_guard<std::mutex> lock(this->mutex);
 
-  if (_msg->has_cmd_propeller_speed() &&
-      std::abs(_msg->cmd_propeller_speed()) <= 1)
+  if (_msg->has_cmd_r1_speed() &&
+      std::abs(_msg->cmd_r1_speed()) <= 1)
   {
-    this->cmds[kPropeller] = _msg->cmd_propeller_speed();
+    this->cmds[kPropeller1] = _msg->cmd_r1_speed();
+    gzdbg << "DFplugin cmd_r1_speed: "<< _msg->cmd_r1_speed()<<std::endl;
   }
-  if (_msg->has_cmd_left_aileron())
-    this->cmds[kLeftAileron] = _msg->cmd_left_aileron();
-  if (_msg->has_cmd_left_flap())
-    this->cmds[kLeftFlap] = _msg->cmd_left_flap();
-  if (_msg->has_cmd_right_aileron())
-    this->cmds[kRightAileron] = _msg->cmd_right_aileron();
-  if (_msg->has_cmd_right_flap())
-    this->cmds[kRightFlap] = _msg->cmd_right_flap();
-  if (_msg->has_cmd_elevators())
-    this->cmds[kElevators] = _msg->cmd_elevators();
-  if (_msg->has_cmd_rudder())
-    this->cmds[kRudder] = _msg->cmd_rudder();
+  if (_msg->has_cmd_r2_speed() &&
+      std::abs(_msg->cmd_r2_speed()) <= 1)
+  {
+    this->cmds[kPropeller2] = _msg->cmd_r2_speed();
+  }
+  if (_msg->has_cmd_csroll())
+    this->cmds[kCsroll] = _msg->cmd_csroll();
+  if (_msg->has_cmd_cspitch())
+    this->cmds[kCspitch] = _msg->cmd_cspitch();
 }
 
+//change control sureface
 /////////////////////////////////////////////////
 void DFPlugin::UpdatePIDs(double _dt)
 {
-  // Velocity PID for the propeller.
-  double vel = this->joints[kPropeller]->GetVelocity(0);
+  // Velocity PID for the r1.
+  double vel = this->joints[kPropeller1]->GetVelocity(0);
+  //gzdbg << "DFplugin vel1: "<< vel<<std::endl;
   double maxVel = this->propellerMaxRpm*2.0*M_PI/60.0;
-  double target = maxVel * this->cmds[kPropeller];
+  double target = maxVel * this->cmds[kPropeller1];
   double error = vel - target;
   double force = this->propellerPID.Update(error, _dt);
-  this->joints[kPropeller]->SetForce(0, force);
+  this->joints[kPropeller1]->SetForce(0, force);
 
+   // Velocity PID for the r2.
+  vel = this->joints[kPropeller2]->GetVelocity(0);
+  //gzdbg << "DFplugin vel2: "<< vel<<std::endl;
+  target = maxVel * this->cmds[kPropeller2];
+  error = vel - target;
+  force = this->propellerPID.Update(error, _dt);
+  this->joints[kPropeller2]->SetForce(0, force);
+  
   // Position PID for the control surfaces.
   for (size_t i = 0; i < this->controlSurfacesPID.size(); ++i)
   {
@@ -216,34 +235,33 @@ void DFPlugin::UpdatePIDs(double _dt)
 void DFPlugin::PublishState()
 {
   // Read the current state.
-  double propellerRpms = this->joints[kPropeller]->GetVelocity(0)
-    /(2.0*M_PI)*60.0;
-  float propellerSpeed = propellerRpms / this->propellerMaxRpm;
-  float leftAileron = this->joints[kLeftAileron]->Position(0);
-  float leftFlap = this->joints[kLeftFlap]->Position(0);
-  float rightAileron = this->joints[kRightAileron]->Position(0);
-  float rightFlap = this->joints[kRightFlap]->Position(0);
-  float elevators = this->joints[kElevators]->Position(0);
-  float rudder = this->joints[kRudder]->Position(0);
+  double propellerRpms1 = this->joints[kPropeller1]->GetVelocity(0)
+    /(2.0*M_PI)*60.0;//rpm
+  double propellerRpms2 = this->joints[kPropeller2]->GetVelocity(0)
+  /(2.0*M_PI)*60.0;//rpm
+  float propellerSpeed1 = propellerRpms1 / this->propellerMaxRpm;//Normalize
+  float propellerSpeed2 = propellerRpms2 / this->propellerMaxRpm;//Normalize
+  float csroll = this->joints[kCsroll]->Position(0);
+  float cspitch = this->joints[kCspitch]->Position(0);
 
-  msgs::Cessna msg;
+  ductedfan_msgs::ductedfan msg;
+  //msg.set_r1_speed(500);
+  //gzdbg << "DFplugin msg: "<< msg.r1_speed()<<std::endl;
+  
   // Set the observed state.
-  msg.set_propeller_speed(propellerSpeed);
-  msg.set_left_aileron(leftAileron);
-  msg.set_left_flap(leftFlap);
-  msg.set_right_aileron(rightAileron);
-  msg.set_right_flap(rightFlap);
-  msg.set_elevators(elevators);
-  msg.set_rudder(rudder);
+  msg.set_r1_speed(propellerSpeed1);
+  msg.set_r2_speed(propellerSpeed2);
+  msg.set_csroll(csroll);
+  msg.set_cspitch(cspitch);
+  
 
   // Set the target state.
-  msg.set_cmd_propeller_speed(this->cmds[kPropeller]);
-  msg.set_cmd_left_aileron(this->cmds[kLeftAileron]);
-  msg.set_cmd_left_flap(this->cmds[kLeftFlap]);
-  msg.set_cmd_right_aileron(this->cmds[kRightAileron]);
-  msg.set_cmd_right_flap(this->cmds[kRightFlap]);
-  msg.set_cmd_elevators(this->cmds[kElevators]);
-  msg.set_cmd_rudder(this->cmds[kRudder]);
-
+  msg.set_cmd_r1_speed(this->cmds[kPropeller1]);
+  msg.set_cmd_r2_speed(this->cmds[kPropeller2]);
+  msg.set_cmd_csroll(this->cmds[kCsroll]);
+  msg.set_cmd_cspitch(this->cmds[kCspitch]);
+ 
+  //Publish msg
   this->statePub->Publish(msg);
+ 
 }

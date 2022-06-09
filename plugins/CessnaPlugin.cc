@@ -208,6 +208,7 @@ void CessnaPlugin::UpdatePIDs(double _dt)
     double pos = this->joints[i]->Position(0);
     error = pos - this->cmds[i];
     force = this->controlSurfacesPID[i].Update(error, _dt);
+	//gzdbg << "force at joints_["<<i<<"] is: "<< force<<"\n";
     this->joints[i]->SetForce(0, force);
   }
 }

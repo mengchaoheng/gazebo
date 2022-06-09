@@ -24,12 +24,13 @@
 
 #include "gazebo/common/Plugin.hh"
 #include "gazebo/physics/physics.hh"
+#include <gazebo/physics/PhysicsTypes.hh>
 #include "gazebo/transport/TransportTypes.hh"
 
 namespace gazebo
 {
   /// \brief A plugin that simulates lift and drag.
-  class GAZEBO_VISIBLE LiftDragPlugin : public ModelPlugin
+  class GZ_PLUGIN_VISIBLE LiftDragPlugin : public ModelPlugin
   {
     /// \brief Constructor.
     public: LiftDragPlugin();
@@ -136,8 +137,7 @@ namespace gazebo
 
     /// \brief SDF for this plugin;
     protected: sdf::ElementPtr sdf;
-    
-    /// 
+
     private: bool FindJoint(const std::string &_sdfParam,
         sdf::ElementPtr _sdf, physics::JointPtr &_joint);
 

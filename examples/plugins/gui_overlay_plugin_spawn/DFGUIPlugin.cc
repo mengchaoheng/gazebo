@@ -40,11 +40,12 @@ DFGUIPlugin::DFGUIPlugin()
   this->gzNode = transport::NodePtr(new transport::Node());
   this->gzNode->Init();
   this->controlPub =
-    this->gzNode->Advertise<ductedfan_msgs::ductedfan>("~/ductedfan/control");
+  this->gzNode->Advertise<ductedfan_msgs::ductedfan>("~/ductedfan/control");
   this->stateSub = this->gzNode->Subscribe<ductedfan_msgs::ductedfan>(
     "~/ductedfan/state", &DFGUIPlugin::OnState, this);
 
   // Connect hotkeys.
+  
   QShortcut *increaseThrust = new QShortcut(QKeySequence("w"), this);
   QObject::connect(increaseThrust, SIGNAL(activated()), this,
       SLOT(OnIncreaseThrust()));
@@ -53,13 +54,6 @@ DFGUIPlugin::DFGUIPlugin()
   QObject::connect(decreaseThrust, SIGNAL(activated()), this,
       SLOT(OnDecreaseThrust()));
 
-  QShortcut *increaseFlaps = new QShortcut(QKeySequence("g"), this);
-  QObject::connect(increaseFlaps, SIGNAL(activated()), this,
-      SLOT(OnIncreaseFlaps()));
-
-  QShortcut *decreaseFlaps = new QShortcut(QKeySequence("b"), this);
-  QObject::connect(decreaseFlaps, SIGNAL(activated()), this,
-      SLOT(OnDecreaseFlaps()));
 
   QShortcut *increaseRoll = new QShortcut(QKeySequence(Qt::Key_Left), this);
   QObject::connect(increaseRoll, SIGNAL(activated()), this,
@@ -72,19 +66,19 @@ DFGUIPlugin::DFGUIPlugin()
   QShortcut *increaseElevators =
     new QShortcut(QKeySequence(Qt::Key_Down), this);
   QObject::connect(increaseElevators, SIGNAL(activated()), this,
-      SLOT(OnIncreaseElevators()));
+      SLOT(OnIncreasePitch()));
 
   QShortcut *decreaseElevators = new QShortcut(QKeySequence(Qt::Key_Up), this);
   QObject::connect(decreaseElevators, SIGNAL(activated()), this,
-      SLOT(OnDecreaseElevators()));
+      SLOT(OnDecreasePitch()));
 
   QShortcut *increaseRudder = new QShortcut(QKeySequence("d"), this);
   QObject::connect(increaseRudder, SIGNAL(activated()), this,
-      SLOT(OnIncreaseRudder()));
+      SLOT(OnIncreaseYaw()));
 
   QShortcut *decreaseRudder = new QShortcut(QKeySequence("a"), this);
   QObject::connect(decreaseRudder, SIGNAL(activated()), this,
-      SLOT(OnDecreaseRudder()));
+      SLOT(OnDecreaseYaw()));
 
   QShortcut *presetTakeOff = new QShortcut(QKeySequence('1'), this);
   QObject::connect(presetTakeOff, SIGNAL(activated()), this,
@@ -93,10 +87,12 @@ DFGUIPlugin::DFGUIPlugin()
   QShortcut *presetCruise = new QShortcut(QKeySequence('2'), this);
   QObject::connect(presetCruise, SIGNAL(activated()), this,
       SLOT(OnPresetCruise()));
-
+  
   QShortcut *presetLanding = new QShortcut(QKeySequence('3'), this);
   QObject::connect(presetLanding, SIGNAL(activated()), this,
       SLOT(OnPresetLanding()));
+  
+  gzdbg << "Ducted Fan GUI" << std::endl;
 }
 
 /////////////////////////////////////////////////
@@ -113,89 +109,61 @@ void DFGUIPlugin::OnState(ConstductedfanPtr &_msg)
   this->state = *_msg;
 }
 
+
 /////////////////////////////////////////////////
 void DFGUIPlugin::OnIncreaseThrust()
 {
-  float thrust;
+  float thrust1;
+  float thrust2;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    thrust = this->state.cmd_propeller_speed();
+    thrust1 = this->state.cmd_r1_speed();
+    thrust2 = this->state.cmd_r2_speed();
+    gzdbg << "DFGUIplugin thrust1: "<< thrust1<<std::endl;
   }
 
   ductedfan_msgs::ductedfan msg;
-  thrust = std::min(thrust + 0.1f, 1.0f);
-  msg.set_cmd_propeller_speed(thrust);
+  thrust1 = std::min(thrust1 + 0.1f, 1.0f);
+  thrust2 = std::min(thrust2 + 0.1f, 1.0f);
+  msg.set_cmd_r1_speed(thrust1);
+  msg.set_cmd_r2_speed(thrust2);
   this->controlPub->Publish(msg);
 }
 
 /////////////////////////////////////////////////
 void DFGUIPlugin::OnDecreaseThrust()
 {
-  float thrust;
+  float thrust1;
+  float thrust2;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    thrust = this->state.cmd_propeller_speed();
+    thrust1 = this->state.cmd_r1_speed();
+    thrust2 = this->state.cmd_r2_speed();
+    gzdbg << "DFGUIplugin thrust1: "<< thrust1<<std::endl;
   }
 
   ductedfan_msgs::ductedfan msg;
-  thrust = std::max(thrust - 0.1f, 0.0f);
-  msg.set_cmd_propeller_speed(thrust);
+  thrust1 = std::max(thrust1 - 0.1f, 0.0f);
+  thrust2 = std::max(thrust2 - 0.1f, 0.0f);
+  msg.set_cmd_r1_speed(thrust1);
+  msg.set_cmd_r2_speed(thrust2);
   this->controlPub->Publish(msg);
-}
-
-/////////////////////////////////////////////////
-void DFGUIPlugin::OnIncreaseFlaps()
-{
-  ignition::math::Angle flap;
-  {
-    std::lock_guard<std::mutex> lock(this->mutex);
-    flap.Radian(this->state.cmd_left_flap());
-  }
-
-  ductedfan_msgs::ductedfan msg;
-  if (flap.Degree() < 30)
-  {
-    flap += this->angleStep;
-    msg.set_cmd_left_flap(flap.Radian());
-    msg.set_cmd_right_flap(flap.Radian());
-    this->controlPub->Publish(msg);
-  }
-}
-
-/////////////////////////////////////////////////
-void DFGUIPlugin::OnDecreaseFlaps()
-{
-  ignition::math::Angle flap;
-  {
-    std::lock_guard<std::mutex> lock(this->mutex);
-    flap.Radian(this->state.cmd_left_flap());
-  }
-
-  ductedfan_msgs::ductedfan msg;
-  if (flap.Degree() > -30)
-  {
-    flap -= this->angleStep;
-    msg.set_cmd_left_flap(flap.Radian());
-    msg.set_cmd_right_flap(flap.Radian());
-    this->controlPub->Publish(msg);
-  }
 }
 
 /////////////////////////////////////////////////
 void DFGUIPlugin::OnIncreaseRoll()
 {
-  ignition::math::Angle aileron;
+  ignition::math::Angle roll;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    aileron.Radian(this->state.cmd_left_aileron());
+    roll.Radian(this->state.cmd_csroll());
   }
 
   ductedfan_msgs::ductedfan msg;
-  if (aileron.Degree() < 30)
+  if (roll.Degree() < 20)
   {
-    aileron += this->angleStep;
-    msg.set_cmd_left_aileron(aileron.Radian());
-    msg.set_cmd_right_aileron(-aileron.Radian());
+    roll += this->angleStep;
+    msg.set_cmd_csroll(roll.Radian());
     this->controlPub->Publish(msg);
   }
 }
@@ -203,105 +171,101 @@ void DFGUIPlugin::OnIncreaseRoll()
 /////////////////////////////////////////////////
 void DFGUIPlugin::OnDecreaseRoll()
 {
-  ignition::math::Angle aileron;
+  ignition::math::Angle roll;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    aileron.Radian(this->state.cmd_left_aileron());
+    roll.Radian(this->state.cmd_csroll());
   }
 
   ductedfan_msgs::ductedfan msg;
-  if (aileron.Degree() > -30)
+  if (roll.Degree() > -20)
   {
-    aileron -= this->angleStep;
-    msg.set_cmd_left_aileron(aileron.Radian());
-    msg.set_cmd_right_aileron(-aileron.Radian());
+    roll -= this->angleStep;
+    msg.set_cmd_csroll(roll.Radian());
     this->controlPub->Publish(msg);
   }
 }
 
 /////////////////////////////////////////////////
-void DFGUIPlugin::OnIncreaseElevators()
+void DFGUIPlugin::OnIncreasePitch()
 {
-  ignition::math::Angle elevators;
+  ignition::math::Angle pitch;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    elevators.Radian(this->state.cmd_elevators());
+    pitch.Radian(this->state.cmd_cspitch());
   }
 
   ductedfan_msgs::ductedfan msg;
-  if (elevators.Degree() < 30)
+  if (pitch.Degree() < 20)
   {
-    elevators += this->angleStep;
-    msg.set_cmd_elevators(elevators.Radian());
+    pitch += this->angleStep;
+    msg.set_cmd_cspitch(pitch.Radian());
     this->controlPub->Publish(msg);
   }
 }
 
 /////////////////////////////////////////////////
-void DFGUIPlugin::OnDecreaseElevators()
+void DFGUIPlugin::OnDecreasePitch()
 {
-  ignition::math::Angle elevators;
+  ignition::math::Angle pitch;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    elevators.Radian(this->state.cmd_elevators());
+    pitch.Radian(this->state.cmd_cspitch());
   }
 
   ductedfan_msgs::ductedfan msg;
-  if (elevators.Degree() > -30)
+  if (pitch.Degree() > -20)
   {
-    elevators -= this->angleStep;
-    msg.set_cmd_elevators(elevators.Radian());
+    pitch -= this->angleStep;
+    msg.set_cmd_cspitch(pitch.Radian());
     this->controlPub->Publish(msg);
   }
 }
 
 /////////////////////////////////////////////////
-void DFGUIPlugin::OnIncreaseRudder()
+void DFGUIPlugin::OnIncreaseYaw()
 {
-  ignition::math::Angle rudder;
+  float thrust1;
+  float thrust2;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    rudder.Radian(this->state.cmd_rudder());
+    thrust1 = this->state.cmd_r1_speed();
+    thrust2 = this->state.cmd_r2_speed();
   }
-
   ductedfan_msgs::ductedfan msg;
-  if (rudder.Degree() < 30)
-  {
-    rudder += this->angleStep;
-    msg.set_cmd_rudder(rudder.Radian());
-    this->controlPub->Publish(msg);
-  }
+  thrust1 = std::max(thrust1 - 0.1f, 0.0f);
+  thrust2 = std::max(thrust2 + 0.1f, 0.0f);
+  msg.set_cmd_r1_speed(thrust1);
+  msg.set_cmd_r2_speed(thrust2);
+  this->controlPub->Publish(msg);
 }
 
 /////////////////////////////////////////////////
-void DFGUIPlugin::OnDecreaseRudder()
+void DFGUIPlugin::OnDecreaseYaw()
 {
-  ignition::math::Angle rudder;
+  float thrust1;
+  float thrust2;
   {
     std::lock_guard<std::mutex> lock(this->mutex);
-    rudder.Radian(this->state.cmd_rudder());
+    thrust1 = this->state.cmd_r1_speed();
+    thrust2 = this->state.cmd_r2_speed();
   }
-
   ductedfan_msgs::ductedfan msg;
-  if (rudder.Degree() > -30)
-  {
-    rudder -= this->angleStep;
-    msg.set_cmd_rudder(rudder.Radian());
-    this->controlPub->Publish(msg);
-  }
+  thrust1 = std::max(thrust1 + 0.1f, 0.0f);
+  thrust2 = std::max(thrust2 - 0.1f, 0.0f);
+  msg.set_cmd_r1_speed(thrust1);
+  msg.set_cmd_r2_speed(thrust2);
+  this->controlPub->Publish(msg);
 }
 
 /////////////////////////////////////////////////
 void DFGUIPlugin::OnPresetTakeOff()
 {
   ductedfan_msgs::ductedfan msg;
-  msg.set_cmd_propeller_speed(0.8);
-  msg.set_cmd_left_aileron(-0.017);
-  msg.set_cmd_right_aileron(0.017);
-  msg.set_cmd_left_flap(0);
-  msg.set_cmd_right_flap(0);
-  msg.set_cmd_elevators(0.033);
-  msg.set_cmd_rudder(-0.035);
+  msg.set_cmd_r1_speed(0.8);
+  msg.set_cmd_r2_speed(0.8);
+  msg.set_cmd_csroll(0);
+  msg.set_cmd_cspitch(0);
   this->controlPub->Publish(msg);
 }
 
@@ -309,26 +273,23 @@ void DFGUIPlugin::OnPresetTakeOff()
 void DFGUIPlugin::OnPresetCruise()
 {
   ductedfan_msgs::ductedfan msg;
-  msg.set_cmd_propeller_speed(0.6);
-  msg.set_cmd_left_aileron(0);
-  msg.set_cmd_right_aileron(0);
-  msg.set_cmd_left_flap(0);
-  msg.set_cmd_right_flap(0);
-  msg.set_cmd_elevators(0.12);
-  msg.set_cmd_rudder(-0.035);
+  msg.set_cmd_r1_speed(0.6);
+  msg.set_cmd_r2_speed(0.6);
+  msg.set_cmd_csroll(0);
+  msg.set_cmd_cspitch(0);
   this->controlPub->Publish(msg);
 }
 
 /////////////////////////////////////////////////
 void DFGUIPlugin::OnPresetLanding()
 {
+  
   ductedfan_msgs::ductedfan msg;
-  msg.set_cmd_propeller_speed(0.3);
-  msg.set_cmd_left_aileron(0);
-  msg.set_cmd_right_aileron(0);
-  msg.set_cmd_left_flap(0);
-  msg.set_cmd_right_flap(0);
-  msg.set_cmd_elevators(0.16);
-  msg.set_cmd_rudder(-0.035);
+  msg.set_cmd_r1_speed(0.3);
+  msg.set_cmd_r2_speed(0.3);
+  msg.set_cmd_csroll(0);
+  msg.set_cmd_cspitch(0);
   this->controlPub->Publish(msg);
+  
+  gzdbg << "Ducted Fan GUI call" << std::endl;
 }

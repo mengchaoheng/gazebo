@@ -22,6 +22,7 @@
 #include <ignition/math/Helpers.hh>
 #include "PID.hh"
 
+
 using namespace gazebo;
 using namespace common;
 
@@ -149,7 +150,9 @@ double PID::Update(double _error, common::Time _dt)
   // Calculate derivative contribution to command
   dTerm = this->dGain * this->dErr;
   this->cmd = -pTerm - iTerm - dTerm;
-
+	//printf("in PID cmd %f \n", this->cmd);
+//std::cerr << "MCH" << this->cmd; 
+    //gzdbg << "this->cmd: "<< this->cmd<<"\n";
   // Check the command limits
   // fixed for issue #1997
   if (this->cmdMax >= this->cmdMin)

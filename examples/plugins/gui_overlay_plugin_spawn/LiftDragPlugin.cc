@@ -19,13 +19,14 @@
 #include <functional>
 #include <string>
 
+//#include <ignition/common/Profiler.hh>
 #include <ignition/math/Pose3.hh>
 
 #include "gazebo/common/Assert.hh"
 #include "gazebo/physics/physics.hh"
 #include "gazebo/sensors/SensorManager.hh"
 #include "gazebo/transport/transport.hh"
-#include "plugins/LiftDragPlugin.hh"
+#include "LiftDragPlugin.hh"
 
 using namespace gazebo;
 
@@ -88,6 +89,7 @@ bool LiftDragPlugin::FindJoint(const std::string &_sdfParam, sdf::ElementPtr _sd
 void LiftDragPlugin::Load(physics::ModelPtr _model,
                      sdf::ElementPtr _sdf)
 {
+  gzdbg << "My LiftDragPlugin" << std::endl;
   GZ_ASSERT(_model, "LiftDragPlugin _model pointer is NULL");
   GZ_ASSERT(_sdf, "LiftDragPlugin _sdf pointer is NULL");
   this->model = _model;
@@ -167,14 +169,13 @@ void LiftDragPlugin::Load(physics::ModelPtr _model,
     }
   }
 
-  
   if ( (this->FindJoint("propeller_joint", _sdf, this->propeller_joint)) && (_sdf->HasElement("propeller_link_name")) )
   {
     sdf::ElementPtr elem = _sdf->GetElement("propeller_link_name");
     GZ_ASSERT(elem, "Element propeller_link_name doesn't exist!");
     std::string propeller_link_name = elem->Get<std::string>();
     this->propeller_link = this->model->GetLink(propeller_link_name);
-    gzdbg << "gzdbg: myLD" << std::endl;
+    gzdbg << "gzdbg: LD" << std::endl;
     GZ_ASSERT(this->propeller_link, "propeller_link was NULL");
     if (!this->propeller_link)
       gzwarn << "propeller_link with name[" << propeller_link << "] not found. " << "\n";
@@ -182,8 +183,7 @@ void LiftDragPlugin::Load(physics::ModelPtr _model,
   }
   else
     this->HasPropellerWind=false;
-  
-  
+
   if (_sdf->HasElement("control_joint_name"))
   {
     std::string controlJointName = _sdf->Get<std::string>("control_joint_name");
@@ -215,9 +215,11 @@ void LiftDragPlugin::OnUpdate()
   if (vel.Length() <= 0.01)
     return;
 
-  // pose of body
-  ignition::math::Pose3d pose = this->link->WorldPose();
+  //IGN_PROFILE("LiftDragPlugin::OnUpdate");
+  //IGN_PROFILE_BEGIN(std::string(this->link->GetName()).c_str());
 
+  // pose of body of link
+  ignition::math::Pose3d pose = this->link->WorldPose();
   // rotate forward and upward vectors into inertial frame
   ignition::math::Vector3d forwardI = pose.Rot().RotateVector(this->forward);
 
@@ -243,14 +245,14 @@ void LiftDragPlugin::OnUpdate()
   double sinSweepAngle = ignition::math::clamp(
       spanwiseI.Dot(velI), minRatio, maxRatio);
 
-  // get cos from trig identity
-  double cosSweepAngle = sqrt(1.0 - sin(this->sweep) * sin(this->sweep));
   this->sweep = asin(sinSweepAngle);
 
   // truncate sweep to within +/-90 deg
   while (fabs(this->sweep) > 0.5 * M_PI)
     this->sweep = this->sweep > 0 ? this->sweep - M_PI
                                   : this->sweep + M_PI;
+  // get cos from trig identity
+  double cosSweepAngle = sqrt(1.0 - sin(this->sweep) * sin(this->sweep));
 
   
   ignition::math::Vector3d W_PI=ignition::math::Vector3d(0, 0, 0);
@@ -266,8 +268,6 @@ void LiftDragPlugin::OnUpdate()
     W_P = ignition::math::Vector3d(wind_by_propeller, 0, 0);
     W_PI = pose_propeller.Rot().RotateVector(W_P);
   }  
-  
-  
   // angle of attack is the angle between
   // velI projected into lift-drag plane
   //  and
@@ -342,6 +342,7 @@ void LiftDragPlugin::OnUpdate()
   {
     double controlAngle = this->controlJoint->Position(0);
     cl = cl + this->controlJointRadToCL * controlAngle;
+
     /// \TODO: also change cm and cd
   }
 
@@ -412,15 +413,12 @@ void LiftDragPlugin::OnUpdate()
   // - lift.Cross(momentArm) - drag.Cross(momentArm);
 
   // debug
-  //
-  // if ((this->link->GetName() == "wing_1" ||
-  //      this->link->GetName() == "wing_2") &&
-  //     (vel.Length() > 50.0 &&
-  //      vel.Length() < 50.0))
+  //if (this->GetHandle() =="rudder")
+    //gzdbg << "forwardI: [" << forwardI << "]\n";
   if (0)
   {
     gzdbg << "=============================\n";
-    gzdbg << "sensor: [" << this->GetHandle() << "]\n";
+    gzdbg << "plugin name: [" << this->GetHandle() << "]\n";
     gzdbg << "Link: [" << this->link->GetName()
           << "] pose: [" << pose
           << "] dynamic pressure: [" << q << "]\n";
@@ -443,6 +441,7 @@ void LiftDragPlugin::OnUpdate()
     gzdbg << "torque: " << torque << "\n";
   }
 
+
   // Correct for nan or inf
   force.Correct();
   this->cp.Correct();
@@ -451,4 +450,5 @@ void LiftDragPlugin::OnUpdate()
   // apply forces at cg (with torques for position shift)
   this->link->AddForceAtRelativePosition(force, this->cp);
   this->link->AddTorque(torque);
+  //IGN_PROFILE_END();
 }
